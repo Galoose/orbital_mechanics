@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "orbital_mechanics_Galoose"
+dynamic = ["version"]
+authors = [
+  { name="Jack Gale", email="jackkgale@gmail.com" },
+]
+description = "A small orbital mechanics library."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/Galoose/orbital_mechanics"
+
+[tool.hatch.version]
+path = "src/orbital_mechanics_Galoose/__about__.py"
