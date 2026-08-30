@@ -3,7 +3,7 @@ requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "orbital_mechanics_Galoose"
+name = "simple-orbital-mechanics"
 dynamic = ["version"]
 authors = [
   { name="Jack Gale", email="jackkgale@gmail.com" },
@@ -22,4 +22,7 @@ license-files = ["LICEN[CS]E*"]
 Homepage = "https://github.com/Galoose/orbital_mechanics"
 
 [tool.hatch.version]
-path = "src/orbital_mechanics_Galoose/__about__.py"
+path = "src/simple_orbital_mechanics/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/simple_orbital_mechanics"]
