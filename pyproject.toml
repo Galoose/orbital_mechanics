@@ -26,3 +26,6 @@ path = "src/simple_orbital_mechanics/__about__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/simple_orbital_mechanics"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/simple_orbital_mechanics/py.typed" = "simple_orbital_mechanics/py.typed"
