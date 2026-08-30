@@ -201,7 +201,7 @@ def impulse(orbit_i: Orbit, orbit_t: Orbit) -> list[float]:
     Returns:
         Initial velocity (m/s), final velocity (m/s), change in velocity (m/s), mass lost (kg).
     """
-    if orbit_i.satellite is not orbit_f.satellite:
+    if orbit_i.satellite is not orbit_t.satellite:
         sys.exit("Orbit satellites are not the same!")
     else:
         satellite = orbit_i.satellite
