@@ -41,37 +41,79 @@ class Satellite:
 class OrbitError(Exception):
     pass
 
-class Orbit:
-    """Defines and stores orbit parameters.
+# Update to handle all orbits from given info (including from TLE)
+#  Will be assigned 2D or 3D from given info
+#   - Add debug output of dimension assigned
+#  Keep error exception for insuffiencient declaration info
+#   - Print list of required values
+#   - Populate dictionary with given/required params?
+class Orbit2D:
+    """Defines and stores 2D orbit parameters.
 
     Attriutes:
-        orbit_type : circular (circ), elliptical (ellip)
-        satellite  : object containing information about satellite in orbit
-        r          : circular orbit radius (m)
-        r_p        : elliptical periapsis radius (m)
-        r_a        : elliptical apoapsis radius (m)
-        rot        : rotation angle of the apse line (deg)
+        satellite : object containing information about satellite in orbit
+        r         : circular orbit radius (m)
+        r_p       : elliptical periapsis radius (m)
+        r_a       : elliptical apoapsis radius (m)
+        e         : orbital eccentricity
+        a         : semi-major axis (m)
+        b         : semi-minor axis (m)
+        rot       : rotation angle of the apse line (deg)
     """
-    def __init__(self, orbit_type: str, satellite: Satellite, r: float = None, r_p: float = None, r_a: float = None, rot: float = 0):
-        self.orbit_type = orbit_type
-        self.satellite  = satellite
-        self.r          = r
-        self.r_p        = r_p
-        self.r_a        = r_a
-        self.rot        = rot
-        match self.orbit_type:
-            case "circ":
-                if self.r is None: raise OrbitError(f"Insufficient information given for orbit of type {orbit_type}!")
-                self.a = self.r_p = self.r_a = self.r
-                self.e = 0
-                self.p = self.a
-            case "ellip":
-                if (self.r_p or self.r_a) is None: raise OrbitError(f"Insufficient information given for orbit of type {orbit_type}!")
-                self.a = 0.5 * (self.r_a + self.r_p)
-                self.e = (self.r_a - self.r_p)/(self.r_a + self.r_p)
-                self.p = self.a * (1 - self.e**2)
+    def __init__(self, satellite: Satellite, r: float = None, r_p: float = None, r_a: float = None, e: float = None, a: float = None, b: float = None, rot: float = 0):
+        self.satellite = satellite
+        self.r         = r
+        self.r_p       = r_p
+        self.r_a       = r_a
+        self.e         = e
+        self.a         = a
+        self.b         = b
+        if rot is None: 
+            self.rot = 0
+        else: 
+            self.rot   = rot
+        if self.r is not None:
+            self.a = self.r_p = self.r_a = self.r
+            self.e = 0
+            self.p = self.a
+        elif (self.r_p and self.r_a) is not None:
+            self.a = 0.5 * (self.r_a + self.r_p)
+            self.e = (self.r_a - self.r_p)/(self.r_a + self.r_p)
+            self.p = self.a * (1 - self.e**2)
+            self.b   = self.a * math.sqrt(1 - self.e**2)
+        elif (self.a and self.b) is not None:
+            if self.a < self.b: raise OrbitError(f"Orbital parameter b ({b}) cannot exceed parameter a ({a})!")
+            self.e   = math.sqrt(1 - (b / a)**2)
+            self.p   = self.a * (1 - self.e**2)
+            self.r_p = self.a * (1 - self.e)
+            self.r_a = 2 * self.a - self.r_p
+        elif (self.e and self.a) is not None:
+            self.p   = self.a * (1 - self.e**2)
+            self.r_p = self.a * (1 - self.e)
+            self.r_a = 2 * self.a - self.r_p
+            self.b   = self.a * math.sqrt(1 - self.e**2)
+        else:
+            given_inputs = {}
+            error_str = "["
+            for key in self.__dict__:
+                if self.__dict__[key] is not None and key is not "satellite" and key is not "rot":
+                    given_inputs[key] = self.__dict__[key]
+                    error_str += f"{self.__dict__[key]} "
+            error_str += "]"
+            raise OrbitError(f"Unsupported combiniation of orbital parameters supplied ({error_str})! Supported formats: [r], [r_p r_a], [a b], [e a]")
         self.h = math.sqrt(2 * self.satellite.mu) * math.sqrt((self.r_a * self.r_p)/(self.r_a + self.r_p))
         self.T = ((2 * math.pi) / math.sqrt(self.satellite.mu)) * self.a**(3/2)
+
+    def orbital_eq(self, theta: float) -> float:
+        """Calculates the current orbital radius.
+
+        Attriutes:
+            theta : true anomaly (rad)
+        Returns:
+            r_dist : orbit radial distance
+        """
+        r_dist = (self.h**2 / self.satellite.mu) * (1 / (1 + self.e * math.cos(theta)))
+        return r_dist
 
 
 class MassError(Exception):
@@ -99,6 +141,7 @@ class Transfer:
             v_f     : final orbital velocity (m/s)
             delta_v : change in orbital velocity (m/s)
             delta_m : change in mass (fuel burned) (kg)
+            gamma   : impulse angle (rad)
         """
         def __init__(self, number: int, v_i: float, v_f: float, delta_v: float, delta_m: float, gamma: float):
             self.number = number
@@ -225,19 +268,19 @@ def impulse(orbit_i: Orbit, orbit_t: Orbit) -> list[float]:
     solutions = {}
     for i in range(2):
         print(math.degrees(nu_i[i]), math.degrees(nu_f[i]))
-        r     = orbit_i.p / (1 + orbit_i.e * math.cos(nu_i[i]))
+        r    = orbit_i.orbital_eq(nu_i[i])
 
-        vp_i  = orbit_i.h / r
-        vp_f  = orbit_t.h / r
+        vp_i = orbit_i.h / r
+        vp_f = orbit_t.h / r
 
-        vr_i  = satellite.mu / orbit_i.h * orbit_i.e * math.sin(nu_i[i])
-        vr_f  = satellite.mu / orbit_t.h * orbit_t.e * math.sin(nu_f[i])
+        vr_i = satellite.mu / orbit_i.h * orbit_i.e * math.sin(nu_i[i])
+        vr_f = satellite.mu / orbit_t.h * orbit_t.e * math.sin(nu_f[i])
 
-        v_i   = math.sqrt(vp_i**2 + vr_i**2)
-        v_f   = math.sqrt(vp_f**2 + vr_f**2)
+        v_i  = math.sqrt(vp_i**2 + vr_i**2)
+        v_f  = math.sqrt(vp_f**2 + vr_f**2)
 
-        phi_i = math.atan2(vr_i, vp_i)
-        phi_f = math.atan2(vr_f, vp_f)
+        phi_i   = math.atan2(vr_i, vp_i)
+        phi_f   = math.atan2(vr_f, vp_f)
 
         delta_v = math.sqrt(v_i**2 + v_f**2 - 2 * v_i * v_f * math.cos(phi_f - phi_i))
         gamma   = math.atan2(vr_f - vr_i, vp_f - vp_i)
@@ -271,7 +314,10 @@ def hohmann(satellite: Satellite, orbit_i: Orbit, orbit_f: Orbit) -> Transfer:
     """
     hohmann_transfer = Transfer("Hohmann", satellite)
 
-    orbit_t: Orbit = Orbit(orbit_type = "ellip", satellite = satellite, r_p = orbit_i.r, r_a = orbit_f.r)
+    if (orbit_i.r or orbit_f.r) is None:
+        raise OrbitError(f"Hohmann transfer is only compatible between circular orbits!")
+
+    orbit_t: Orbit2D = Orbit2D(satellite = satellite, r_p = orbit_i.r, r_a = orbit_f.r)
     
     hohmann_transfer.transfer_impulse(*impulse(orbit_i, orbit_t))
     hohmann_transfer.transfer_time(orbit_t.T / 2)
@@ -280,22 +326,27 @@ def hohmann(satellite: Satellite, orbit_i: Orbit, orbit_f: Orbit) -> Transfer:
     return hohmann_transfer
 
 
-def bielliptic(satellite: Satellite, orbit_i: Orbit, orbit_f: Orbit) -> Transfer:
+def bielliptic(satellite: Satellite, orbit_i: Orbit, orbit_f: Orbit, tdm: float = 40) -> Transfer:
     """Calculates change in velocity and mass for a bi-elliptic transfer, given initial and final orbit conditions.
 
     Args:      
         satellite : object containing information about satellite in orbit  
         orbit_i   : starting orbit conditions
         orbit_f   : final orbit conditions
+        tdm       : transfer-distance-multiplier -> determines orbital radius of the bielliptic transfer orbit, is multiplier of the initial orbit radius
 
     Returns:
         Transfer object containing all relevant data.
     """
     bielliptic_transfer = Transfer("Bi-elliptic", satellite = satellite)
-    r_m = 40 * orbit_i.r
 
-    orbit_t1 : Orbit = Orbit(orbit_type = "ellip", satellite = satellite, r_p = orbit_i.r, r_a = r_m)
-    orbit_t2 : Orbit = Orbit(orbit_type = "ellip", satellite = satellite, r_p = orbit_f.r, r_a = r_m)
+    if (orbit_i.r or orbit_f.r) is None:
+        raise OrbitError(f"Bielliptic transfer is only compatible between circular orbits!")
+
+    r_m = tdm * orbit_i.r
+
+    orbit_t1 : Orbit2D = Orbit2D(satellite = satellite, r_p = orbit_i.r, r_a = r_m)
+    orbit_t2 : Orbit2D = Orbit2D(satellite = satellite, r_p = orbit_f.r, r_a = r_m)
 
     bielliptic_transfer.transfer_impulse(*impulse(orbit_i,  orbit_t1))
     bielliptic_transfer.transfer_time(orbit_t1.T / 2)
