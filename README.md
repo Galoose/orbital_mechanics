@@ -13,13 +13,11 @@ print("Starting Hohmann transfer:")
  
 my_satellite = Satellite(m_i=5_192, isp=450.5)
  
-orbit_i: Orbit = Orbit(
-    orbit_type="circ",
+orbit_i: Orbit2D = Orbit2D(
     satellite=my_satellite,
     r=start_orbit)
  
-orbit_f: Orbit = Orbit(
-    orbit_type="circ",
+orbit_f: Orbit2D = Orbit2D(
     satellite=my_satellite,
     r=final_orbit)
  
